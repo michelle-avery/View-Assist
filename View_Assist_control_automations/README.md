@@ -3,7 +3,7 @@
 
 The View Assist display satellites have different modes for how screens are shown on the device and for how long. This behavior is controlled by an automation. Each View Assist visual device will need its own control automation.
 
-[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fdinki%2FView-Assist%2Fmain%2FView_Assist_control_automations%2Fblueprint-devicecontrol.yaml)
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fmichelle-avery%2FView-Assist%2Fcustom-for-rad%2FView_Assist_control_automations%2Fblueprint-devicecontrol.yaml)
 
 <a href="https://www.youtube.com/watch?v=Vrm4TCotEqA"><img src="https://img.youtube.com/vi/Vrm4TCotEqA/mqdefault.jpg" width="60%"></a>
 
