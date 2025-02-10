@@ -96,6 +96,11 @@ blueprint:
           description: The view to display for default HA actions for displaying those
             entities
           default: /dashboard-viewassist/intent
+        list_view:
+          name: List View screen
+          description: The view to display for HA actions involving list
+            entities
+          default: /dashboard-viewassist/list
         assist_prompt:
           name: Assist Prompt
           description: The Assist prompt style to use for wake word and intent processing
@@ -341,6 +346,7 @@ variables:
   micdevice: !input micdevice
   intent: !input intent
   intent_view: !input intent_view
+  list_view: !input list_view
   background: !input background
   rotate_background: !input rotate_background
   background_directory: !input background_directory
@@ -479,41 +485,54 @@ action:
           entity_id: '{{ satellite }}'
           last_said: '{{ state_attr(intent, ''intent_output'')[''response''][''speech''][''plain''][''speech'']}}'
         enabled: true
-    - service: python_script.set_state
-      data:
-        entity_id: '{{ satellite }}'
-        intent_entities: >-
-          {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %} 
-          {% set prefix = ('light','switch', 'cover','input_boolean', 'fan', 'scene','sensor') %} 
-          {% set data = namespace(filtered_list=[]) %} 
-          {% for item in list %}
-            {%- if item.startswith(prefix) %}
-              {% set data.filtered_list = data.filtered_list + [item] %}
-            {% endif -%}
-          {% endfor %} {% set list = data.filtered_list %} [
-            {% for e in list %}
-              {% if not e.startswith('sensor') %}
-                {{ {'type': 'custom:button-card','entity':
-                      e, 'tap_action':{'action':'toggle'}, 'double_tap_action':{'action':'more-info'}}
-                }}, 
-              {% elif e.startswith('sensor') %}
-                {{ {'type': 'sensor','entity':
-                      e, 'graph':'line', 'hours_to_show': 24}
-                }},
-              {% endif %}
-            {% endfor %}
-          ]
-      enabled: true      
     - if:
       - condition: template
-        value_template: '{% if ''id'' in state_attr(intent, ''intent_output'')[''response''][''data''][''success''][0]
-          %} true {% else %} false {% endif %}'
+        value_template: >-
+          {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
+          {% set todo_list = list | select('startswith', 'todo') | list %}
+          {{ todo_list | length > 0 }}
       then:
       - service: remote_assist_display.navigate
         data:
-          path: '{{ intent_view }}'
+          path: '{{ list_view }}'
         target:
-          device_id: '{{device_id(display)}}'          
+          device_id: '{{device_id(display)}}'
+      else:
+      - service: python_script.set_state
+        data:
+          entity_id: '{{ satellite }}'
+          intent_entities: >-
+            {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
+            {% set prefix = ('light','switch', 'cover','input_boolean', 'fan', 'scene','sensor') %}
+            {% set data = namespace(filtered_list=[]) %}
+            {% for item in list %}
+              {%- if item.startswith(prefix) %}
+                {% set data.filtered_list = data.filtered_list + [item] %}
+              {% endif -%}
+            {% endfor %} {% set list = data.filtered_list %} [
+              {% for e in list %}
+                {% if not e.startswith('sensor') %}
+                  {{ {'type': 'custom:button-card','entity':
+                        e, 'tap_action':{'action':'toggle'}, 'double_tap_action':{'action':'more-info'}}
+                  }},
+                {% elif e.startswith('sensor') %}
+                  {{ {'type': 'sensor','entity':
+                        e, 'graph':'line', 'hours_to_show': 24}
+                  }},
+                {% endif %}
+              {% endfor %}
+            ]
+        enabled: true
+      - if:
+        - condition: template
+          value_template: '{% if ''id'' in state_attr(intent, ''intent_output'')[''response''][''data''][''success''][0]
+            %} true {% else %} false {% endif %}'
+        then:
+        - service: remote_assist_display.navigate
+          data:
+            path: '{{ intent_view }}'
+          target:
+            device_id: '{{device_id(display)}}'
   - conditions:
       - condition: trigger
         id:
