@@ -489,9 +489,30 @@ action:
       - condition: template
         value_template: >-
           {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
-          {% set todo_list = list | select('startswith', 'todo') | list %}
-          {{ todo_list | length > 0 }}
+          {% for item in list %}
+            {% if item.startswith('todo.') %}
+              true
+              {% break %}
+            {% endif %}
+          {% endfor %}
       then:
+      - service: python_script.set_state
+        data:
+          entity_id: '{{ satellite }}'
+          list: >-
+            {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
+            {% for item in list %}
+              {% if item.startswith('todo.') %}
+                {{ item }}
+              {% endif %}
+            {% endfor %}
+          title: >-
+            {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
+            {% for item in list %}
+              {% if item.startswith('todo.') %}
+                {{ state_attr(item, 'friendly_name') }}
+              {% endif %}
+            {% endfor %}
       - service: remote_assist_display.navigate
         data:
           path: '{{ list_view }}'
