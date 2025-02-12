@@ -485,75 +485,99 @@ action:
           entity_id: '{{ satellite }}'
           last_said: '{{ state_attr(intent, ''intent_output'')[''response''][''speech''][''plain''][''speech'']}}'
         enabled: true
-    - if:
-      - condition: template
-        value_template: >-
-          {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
-          {% for item in list %}
-            {% if item.startswith('todo.') %}
-              true
-              {% break %}
-            {% endif %}
-          {% endfor %}
-      then:
-      - service: python_script.set_state
-        data:
-          entity_id: '{{ satellite }}'
-          list: >-
-            {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
-            {% for item in list %}
-              {% if item.startswith('todo.') %}
-                {{ item }}
-              {% endif %}
-            {% endfor %}
-          title: >-
-            {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
-            {% for item in list %}
-              {% if item.startswith('todo.') %}
-                {{ state_attr(item, 'friendly_name') }}
-              {% endif %}
-            {% endfor %}
-      - service: remote_assist_display.navigate
-        data:
-          path: '{{ list_view }}'
-        target:
-          device_id: '{{device_id(display)}}'
-      else:
-      - service: python_script.set_state
-        data:
-          entity_id: '{{ satellite }}'
-          intent_entities: >-
-            {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
-            {% set prefix = ('light','switch', 'cover','input_boolean', 'fan', 'scene','sensor') %}
-            {% set data = namespace(filtered_list=[]) %}
-            {% for item in list %}
-              {%- if item.startswith(prefix) %}
-                {% set data.filtered_list = data.filtered_list + [item] %}
-              {% endif -%}
-            {% endfor %} {% set list = data.filtered_list %} [
-              {% for e in list %}
-                {% if not e.startswith('sensor') %}
-                  {{ {'type': 'custom:button-card','entity':
-                        e, 'tap_action':{'action':'toggle'}, 'double_tap_action':{'action':'more-info'}}
-                  }},
-                {% elif e.startswith('sensor') %}
-                  {{ {'type': 'sensor','entity':
-                        e, 'graph':'line', 'hours_to_show': 24}
-                  }},
-                {% endif %}
-              {% endfor %}
-            ]
-        enabled: true
-      - if:
-        - condition: template
-          value_template: '{% if ''id'' in state_attr(intent, ''intent_output'')[''response''][''data''][''success''][0]
-            %} true {% else %} false {% endif %}'
-        then:
-        - service: remote_assist_display.navigate
+    - choose:
+        # First option: check for todo entities
+        - conditions:
+            - condition: template
+              value_template: >-
+                {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
+                {% for item in list %}
+                  {% if item.startswith('todo.') %}
+                    true
+                    {% break %}
+                  {% endif %}
+                {% endfor %}
+          sequence:
+            - service: python_script.set_state
+              data:
+                entity_id: '{{ satellite }}'
+                list: >-
+                  {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
+                  {% for item in list %}
+                    {% if item.startswith('todo.') %}
+                      {{ item }}
+                    {% endif %}
+                  {% endfor %}
+                title: >-
+                  {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
+                  {% for item in list %}
+                    {% if item.startswith('todo.') %}
+                      {{ state_attr(item, 'friendly_name') }}
+                    {% endif %}
+                  {% endfor %}
+            - service: remote_assist_display.navigate
+              data:
+                path: '{{ list_view }}'
+              target:
+                device_id: '{{device_id(display)}}'
+        # Second option: check for dashboard card
+        - conditions:
+            - condition: template
+              value_template: >-
+                {%- set card = state_attr(intent,'intent_output')['response']['card'] -%}
+                {{- 'dashboard' in card if card is defined else false -}}
+          sequence:
+            - service: python_script.set_state
+              data: >-
+                {% set content = state_attr(intent,'intent_output')['response']['card']['dashboard']['content'] | from_json %}
+                {
+                  "entity_id": "{{ satellite }}"
+                  {%- for key, value in content.items() -%}
+                  , "{{ key }}": "{{ value }}"
+                  {%- endfor -%}
+                }
+            - service: remote_assist_display.navigate
+              data:
+                path: "{{ state_attr(intent,'intent_output')['response']['card']['dashboard']['title'] }}"
+              target:
+                device_id: '{{device_id(display)}}'
+      # Default option if no conditions match
+      default:
+        - service: python_script.set_state
           data:
-            path: '{{ intent_view }}'
-          target:
-            device_id: '{{device_id(display)}}'
+            entity_id: '{{ satellite }}'
+            intent_entities: >-
+              {% set list = state_attr(intent,'intent_output')['response']['data']['success'] | map(attribute='id') | list %}
+              {% set prefix = ('light','switch', 'cover','input_boolean', 'fan', 'scene','sensor') %}
+              {% set data = namespace(filtered_list=[]) %}
+              {% for item in list %}
+                {%- if item.startswith(prefix) %}
+                  {% set data.filtered_list = data.filtered_list + [item] %}
+                {% endif -%}
+              {% endfor %} {% set list = data.filtered_list %} [
+                {% for e in list %}
+                  {% if not e.startswith('sensor') %}
+                    {{ {'type': 'custom:button-card','entity':
+                          e, 'tap_action':{'action':'toggle'}, 'double_tap_action':{'action':'more-info'}}
+                    }},
+                  {% elif e.startswith('sensor') %}
+                    {{ {'type': 'sensor','entity':
+                          e, 'graph':'line', 'hours_to_show': 24}
+                    }},
+                  {% endif %}
+                {% endfor %}
+              ]
+          enabled: true
+        - if:
+            - condition: template
+              value_template: '{% if ''id'' in state_attr(intent, ''intent_output'')[''response''][''data''][''success''][0]
+                %} true {% else %} false {% endif %}'
+          then:
+            - service: remote_assist_display.navigate
+              data:
+                path: '{{ intent_view }}'
+              target:
+                device_id: '{{device_id(display)}}'
   - conditions:
       - condition: trigger
         id:
